@@ -47,11 +47,13 @@ export function RiskyApp({ userId }: { userId: string }) {
   const [selected, setSelected] = useState<Adventure | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
 
-  // Settings
+  // Settings. The QR always points to the exact site this is being viewed on,
+  // so it can't drift to a stale/wrong domain.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const appUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "");
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://risky-sigma.vercel.app";
 
   // Map recenter
   const [recenterTo, setRecenterTo] = useState<[number, number] | null>(null);
