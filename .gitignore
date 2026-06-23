@@ -10,3 +10,8 @@ build
 npm-debug.log*
 .vercel
 next-env.d.ts
+
+# local preview tooling
+.claude/
+dev.out
+dev.log
