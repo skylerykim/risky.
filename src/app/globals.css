@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(168, 85, 247, 0.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, rgba(249, 168, 212, 0.12), transparent 55%),
+    #0b0710;
+  color: #ece7f3;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* "risky" wordmark: ri = pink, sky = purple */
+.wordmark {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.wordmark .ri {
+  color: #f9a8d4;
+}
+.wordmark .sky {
+  background: linear-gradient(120deg, #c084fc, #a855f7 45%, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Range sliders styled to match the brand */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #2a1d40;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f9a8d4, #a855f7);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f9a8d4, #a855f7);
+  cursor: pointer;
+}
+
+/* Leaflet dark tweaks */
+.leaflet-container {
+  background: #0b0710;
+  font-family: inherit;
+}
+.leaflet-control-attribution {
+  background: rgba(11, 7, 16, 0.7) !important;
+  color: #6b6377 !important;
+}
+.leaflet-control-attribution a {
+  color: #8b7da3 !important;
+}
+.leaflet-bar a {
+  background: #140d1c !important;
+  color: #ece7f3 !important;
+  border-color: #2a1d40 !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #140d1c;
+  color: #ece7f3;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
