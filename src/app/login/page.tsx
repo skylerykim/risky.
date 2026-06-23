@@ -4,30 +4,58 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Wordmark } from "@/components/Wordmark";
 
+// The two people this app is for. Change these names if you ever want to.
+const PEOPLE = ["Skyler", "Rihana"];
+
+type Step = "who" | "email" | "code";
+
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>("who");
   const [name, setName] = useState("");
-  const [sent, setSent] = useState(false);
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function sendLink(e: React.FormEvent) {
-    e.preventDefault();
+  const supabase = createClient();
+
+  async function sendCode(e?: React.FormEvent) {
+    e?.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: {
-        emailRedirectTo: `${siteUrl}/auth/callback`,
-        data: { display_name: name.trim() || undefined },
-      },
+      options: { shouldCreateUser: true, data: { display_name: name } },
     });
     setLoading(false);
     if (error) setError(error.message);
-    else setSent(true);
+    else setStep("code");
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: "email",
+    });
+    if (error) {
+      setLoading(false);
+      setError("That code didn't work. Double-check it or send a new one.");
+      return;
+    }
+    // Make sure this person has a profile with the name they picked.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      await supabase
+        .from("profiles")
+        .upsert({ id: user.id, display_name: name }, { onConflict: "id" });
+    }
+    window.location.href = "/";
   }
 
   return (
@@ -40,43 +68,50 @@ export default function LoginPage() {
           Our adventures, mapped. Just the two of us.
         </p>
 
-        {sent ? (
-          <div className="rounded-2xl border border-white/10 bg-ink2 p-6 text-center">
-            <div className="mb-2 text-2xl">💌</div>
-            <h2 className="mb-1 font-semibold">Check your email</h2>
-            <p className="text-sm text-white/50">
-              We sent a magic link to{" "}
-              <span className="text-risk">{email}</span>. Tap it on your
-              phone to jump in.
+        {/* Step 1: who are you */}
+        {step === "who" && (
+          <div className="rounded-2xl border border-white/10 bg-ink2 p-6">
+            <p className="mb-4 text-center text-sm text-white/60">
+              Who&apos;s this?
             </p>
-            <button
-              onClick={() => setSent(false)}
-              className="mt-5 text-xs text-sky underline-offset-4 hover:underline"
-            >
-              Use a different email
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              {PEOPLE.map((p, i) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setName(p);
+                    setStep("email");
+                  }}
+                  className={`rounded-2xl border border-white/10 py-6 text-lg font-semibold transition active:scale-[0.98] ${
+                    i === 0
+                      ? "bg-risk/15 text-risk hover:bg-risk/25"
+                      : "bg-sky/15 text-sky hover:bg-sky/25"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Step 2: email */}
+        {step === "email" && (
           <form
-            onSubmit={sendLink}
+            onSubmit={sendCode}
             className="space-y-3 rounded-2xl border border-white/10 bg-ink2 p-6"
           >
+            <p className="text-center text-sm text-white/60">
+              Hey <span className="font-semibold text-white">{name}</span> 👋
+            </p>
             <label className="block">
               <span className="mb-1.5 block text-xs text-white/40">
-                Your name
+                Your email
               </span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Clark"
-                className="w-full rounded-xl border border-white/10 bg-ink px-4 py-3 text-sm outline-none focus:border-sky"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs text-white/40">Email</span>
               <input
                 type="email"
                 required
+                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@email.com"
@@ -86,13 +121,57 @@ export default function LoginPage() {
             {error && <p className="text-xs text-red-400">{error}</p>}
             <button
               disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-risk to-sky py-3 text-sm font-semibold text-ink shadow-glow transition active:scale-[0.99] disabled:opacity-60"
+              className="w-full rounded-xl bg-gradient-to-r from-risk to-sky py-3 text-sm font-semibold text-ink shadow-glow disabled:opacity-60"
             >
-              {loading ? "Sending…" : "Send me a magic link"}
+              {loading ? "Sending…" : "Email me a 6-digit code"}
             </button>
-            <p className="pt-1 text-center text-[11px] leading-relaxed text-white/30">
-              No password. We email you a one-tap link to sign in.
+            <button
+              type="button"
+              onClick={() => {
+                setStep("who");
+                setError(null);
+              }}
+              className="w-full text-center text-xs text-white/40 hover:text-white/70"
+            >
+              Not {name}? Go back
+            </button>
+          </form>
+        )}
+
+        {/* Step 3: code */}
+        {step === "code" && (
+          <form
+            onSubmit={verifyCode}
+            className="space-y-3 rounded-2xl border border-white/10 bg-ink2 p-6"
+          >
+            <p className="text-center text-sm text-white/60">
+              Enter the 6-digit code we sent to
+              <br />
+              <span className="text-risk">{email}</span>
             </p>
+            <input
+              inputMode="numeric"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              maxLength={6}
+              placeholder="123456"
+              className="w-full rounded-xl border border-white/10 bg-ink px-4 py-3 text-center text-2xl tracking-[0.4em] outline-none focus:border-sky"
+            />
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <button
+              disabled={loading || code.length < 6}
+              className="w-full rounded-xl bg-gradient-to-r from-risk to-sky py-3 text-sm font-semibold text-ink shadow-glow disabled:opacity-40"
+            >
+              {loading ? "Checking…" : "Enter"}
+            </button>
+            <button
+              type="button"
+              onClick={() => sendCode()}
+              className="w-full text-center text-xs text-white/40 hover:text-white/70"
+            >
+              Resend code
+            </button>
           </form>
         )}
       </div>
