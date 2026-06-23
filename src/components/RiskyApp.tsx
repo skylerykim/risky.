@@ -58,7 +58,16 @@ export function RiskyApp({ userId }: { userId: string }) {
   const [recenterTrigger, setRecenterTrigger] = useState(0);
 
   const me = profiles.find((p) => p.id === userId) || null;
-  const partner = profiles.find((p) => p.id !== userId) || null;
+  // The other person. If stray duplicate profiles ever exist, prefer the one
+  // with the most recent location.
+  const partner =
+    profiles
+      .filter((p) => p.id !== userId)
+      .sort(
+        (a, b) =>
+          (b.location_updated_at ? Date.parse(b.location_updated_at) : 0) -
+          (a.location_updated_at ? Date.parse(a.location_updated_at) : 0)
+      )[0] || null;
   const partnerPos: LatLng | null =
     partner?.lat != null && partner?.lng != null
       ? { lat: partner.lat, lng: partner.lng }
