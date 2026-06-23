@@ -15,6 +15,7 @@ import { DistanceBar } from "@/components/DistanceBar";
 import { AddAdventure, DraftPhoto } from "@/components/AddAdventure";
 import { MemoryDetail } from "@/components/MemoryDetail";
 import { Settings } from "@/components/Settings";
+import { personColor } from "@/lib/people";
 import type { LatLng } from "@/components/MapView";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -345,6 +346,22 @@ export function RiskyApp({ userId }: { userId: string }) {
     window.location.href = "/login";
   }
 
+  // Break the pair: free up my name + location so it can be re-picked, then
+  // sign out and return to the name picker.
+  async function breakPair() {
+    await supabase
+      .from("profiles")
+      .update({
+        display_name: null,
+        lat: null,
+        lng: null,
+        location_updated_at: null,
+      })
+      .eq("id", userId);
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
   function flyToMe() {
     if (mePos) {
       setRecenterTo([mePos.lat, mePos.lng]);
@@ -367,6 +384,8 @@ export function RiskyApp({ userId }: { userId: string }) {
           }}
           me={mePos}
           partner={partnerPos}
+          meColor={personColor(me?.display_name)}
+          partnerColor={personColor(partner?.display_name)}
           recenterTo={recenterTo}
           recenterTrigger={recenterTrigger}
           firstThumb={firstThumb}
@@ -481,6 +500,7 @@ export function RiskyApp({ userId }: { userId: string }) {
           appUrl={appUrl}
           onSaveName={saveName}
           onSignOut={signOut}
+          onBreakPair={breakPair}
         />
       </Sheet>
     </main>

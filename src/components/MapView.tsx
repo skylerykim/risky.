@@ -70,6 +70,8 @@ export default function MapView({
   onPick,
   me,
   partner,
+  meColor = "#f9a8d4",
+  partnerColor = "#a855f7",
   recenterTo,
   recenterTrigger,
   firstThumb,
@@ -81,6 +83,8 @@ export default function MapView({
   onPick: (lat: number, lng: number) => void;
   me: LatLng | null;
   partner: LatLng | null;
+  meColor?: string;
+  partnerColor?: string;
   recenterTo: [number, number] | null;
   recenterTrigger: number;
   firstThumb: Record<string, string | undefined>;
@@ -119,9 +123,9 @@ export default function MapView({
         <Marker position={[pickPoint.lat, pickPoint.lng]} icon={pinIcon()} />
       )}
 
-      {me && <Marker position={[me.lat, me.lng]} icon={dotIcon("#f9a8d4")} />}
+      {me && <Marker position={[me.lat, me.lng]} icon={dotIcon(meColor)} />}
       {partner && (
-        <Marker position={[partner.lat, partner.lng]} icon={dotIcon("#a855f7")} />
+        <Marker position={[partner.lat, partner.lng]} icon={dotIcon(partnerColor)} />
       )}
     </MapContainer>
   );

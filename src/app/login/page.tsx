@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Wordmark } from "@/components/Wordmark";
-
-// The two people this app is for. Change these names if you ever want to.
-const PEOPLE = ["Skyler", "Rihana"];
+import { PEOPLE, isPurplePerson } from "@/lib/people";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState<string | null>(null);
@@ -15,6 +13,7 @@ export default function LoginPage() {
   async function enter(name: string) {
     setLoading(name);
     setError(null);
+
     const { data, error } = await supabase.auth.signInAnonymously({
       options: { data: { display_name: name } },
     });
@@ -25,12 +24,28 @@ export default function LoginPage() {
       );
       return;
     }
+
+    // Don't let both phones be the same person.
+    const { data: taken } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("display_name", name)
+      .neq("id", data.user.id)
+      .limit(1);
+
+    if (taken && taken.length > 0) {
+      await supabase.auth.signOut();
+      setLoading(null);
+      const other = PEOPLE.find((p) => p !== name) ?? "the other name";
+      setError(
+        `${name} is already taken on the other phone. Pick ${other}, or tap "Break pair" there first.`
+      );
+      return;
+    }
+
     await supabase
       .from("profiles")
-      .upsert(
-        { id: data.user.id, display_name: name },
-        { onConflict: "id" }
-      );
+      .upsert({ id: data.user.id, display_name: name }, { onConflict: "id" });
     window.location.href = "/";
   }
 
@@ -49,15 +64,15 @@ export default function LoginPage() {
             Who&apos;s this?
           </p>
           <div className="grid grid-cols-2 gap-3">
-            {PEOPLE.map((p, i) => (
+            {PEOPLE.map((p) => (
               <button
                 key={p}
                 disabled={loading !== null}
                 onClick={() => enter(p)}
                 className={`rounded-2xl border border-white/10 py-6 text-lg font-semibold transition active:scale-[0.98] disabled:opacity-50 ${
-                  i === 0
-                    ? "bg-risk/15 text-risk hover:bg-risk/25"
-                    : "bg-sky/15 text-sky hover:bg-sky/25"
+                  isPurplePerson(p)
+                    ? "bg-sky/15 text-sky hover:bg-sky/25"
+                    : "bg-risk/15 text-risk hover:bg-risk/25"
                 }`}
               >
                 {loading === p ? "…" : p}

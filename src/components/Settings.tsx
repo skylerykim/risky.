@@ -11,6 +11,7 @@ export function Settings({
   appUrl,
   onSaveName,
   onSignOut,
+  onBreakPair,
 }: {
   displayName: string;
   partnerName: string | null;
@@ -18,7 +19,9 @@ export function Settings({
   appUrl: string;
   onSaveName: (name: string) => Promise<void>;
   onSignOut: () => void;
+  onBreakPair: () => void;
 }) {
+  const [confirmBreak, setConfirmBreak] = useState(false);
   const [name, setName] = useState(displayName);
   const [savingName, setSavingName] = useState(false);
   const [savedName, setSavedName] = useState(false);
@@ -110,6 +113,43 @@ export function Settings({
       >
         Sign out
       </button>
+
+      {/* Break pair */}
+      <section>
+        <h3 className="mb-2 text-xs uppercase tracking-wide text-white/40">
+          Paired with the wrong person?
+        </h3>
+        {confirmBreak ? (
+          <div className="space-y-2 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+            <p className="text-sm text-white/70">
+              This frees up your name, signs you out on this phone, and takes
+              you back to the picker so you can choose again. Your memories are
+              kept.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={onBreakPair}
+                className="flex-1 rounded-lg bg-red-500/90 py-2.5 text-sm font-semibold text-white"
+              >
+                Break pair &amp; start over
+              </button>
+              <button
+                onClick={() => setConfirmBreak(false)}
+                className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-white/60"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmBreak(true)}
+            className="w-full rounded-xl border border-red-500/20 py-3 text-sm text-red-300/80 hover:text-red-300"
+          >
+            Break pair &amp; re-pick
+          </button>
+        )}
+      </section>
     </div>
   );
 }
