@@ -14,6 +14,7 @@ import { Sheet } from "@/components/Sheet";
 import { DistanceBar } from "@/components/DistanceBar";
 import { AddAdventure, DraftPhoto } from "@/components/AddAdventure";
 import { MemoryDetail } from "@/components/MemoryDetail";
+import { Settings } from "@/components/Settings";
 import type { LatLng } from "@/components/MapView";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -44,6 +45,13 @@ export function RiskyApp({ userId }: { userId: string }) {
 
   // Detail flow
   const [selected, setSelected] = useState<Adventure | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Settings
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
 
   // Map recenter
   const [recenterTo, setRecenterTo] = useState<[number, number] | null>(null);
@@ -147,10 +155,11 @@ export function RiskyApp({ userId }: { userId: string }) {
     return () => navigator.geolocation.clearWatch(id);
   }, [supabase, userId]);
 
-  // ---- Open a memory: load signed URLs for all its photos --------------
-  async function openMemory(a: Adventure) {
-    const photos = a.photos ?? [];
-    if (photos.length) {
+  // ---- Sign all of an adventure's photos for viewing -------------------
+  const signPhotos = useCallback(
+    async (a: Adventure): Promise<Adventure> => {
+      const photos = a.photos ?? [];
+      if (!photos.length) return { ...a, photos: [] };
       const { data: signed } = await supabase.storage
         .from(BUCKET)
         .createSignedUrls(
@@ -161,13 +170,31 @@ export function RiskyApp({ userId }: { userId: string }) {
         .slice()
         .sort((x, y) => x.sort - y.sort)
         .map((p, i) => ({ ...p, signedUrl: signed?.[i]?.signedUrl ?? undefined }));
-      setSelected({ ...a, photos: withUrls });
-    } else {
-      setSelected(a);
-    }
+      return { ...a, photos: withUrls };
+    },
+    [supabase]
+  );
+
+  // ---- Open a memory ---------------------------------------------------
+  async function openMemory(a: Adventure) {
+    setSelected(await signPhotos(a));
     setRecenterTo([a.lat, a.lng]);
     setRecenterTrigger((t) => t + 1);
   }
+
+  // ---- Re-pull a memory after editing its photos -----------------------
+  const refreshSelected = useCallback(
+    async (id: string) => {
+      const { data } = await supabase
+        .from("adventures")
+        .select("*, photos(*)")
+        .eq("id", id)
+        .single();
+      if (data) setSelected(await signPhotos(data as Adventure));
+      loadAdventures();
+    },
+    [supabase, signPhotos, loadAdventures]
+  );
 
   // ---- Save a new memory ----------------------------------------------
   async function saveMemory(data: {
@@ -234,6 +261,65 @@ export function RiskyApp({ userId }: { userId: string }) {
     loadAdventures();
   }
 
+  // ---- Edit a memory's title / note ------------------------------------
+  async function saveDetails(id: string, title: string, note: string) {
+    await supabase
+      .from("adventures")
+      .update({ title, note: note || null })
+      .eq("id", id);
+    setSelected((s) => (s ? { ...s, title, note: note || null } : s));
+    loadAdventures();
+  }
+
+  // ---- Add photos to an existing memory --------------------------------
+  async function addPhotosToMemory(id: string, files: FileList) {
+    setPhotoBusy(true);
+    try {
+      const existing = selected?.photos ?? [];
+      let sort = existing.length
+        ? Math.max(...existing.map((p) => p.sort)) + 1
+        : 0;
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${userId}/${id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { upsert: false });
+        if (error) throw error;
+        await supabase.from("photos").insert({
+          adventure_id: id,
+          storage_path: path,
+          filters: {},
+          sort: sort++,
+        });
+      }
+      await refreshSelected(id);
+    } catch (e) {
+      alert("Could not add photo: " + (e as Error).message);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  // ---- Remove one photo from a memory ----------------------------------
+  async function removePhoto(adventureId: string, photo: Photo) {
+    setPhotoBusy(true);
+    try {
+      await supabase.storage.from(BUCKET).remove([photo.storage_path]);
+      await supabase.from("photos").delete().eq("id", photo.id);
+      await refreshSelected(adventureId);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  // ---- Update my display name ------------------------------------------
+  async function saveName(name: string) {
+    await supabase.from("profiles").update({ display_name: name }).eq("id", userId);
+    await loadProfiles();
+  }
+
   // ---- Delete a memory -------------------------------------------------
   async function deleteMemory(a: Adventure) {
     const paths = (a.photos ?? []).map((p) => p.storage_path);
@@ -290,10 +376,11 @@ export function RiskyApp({ userId }: { userId: string }) {
           />
         </div>
         <button
-          onClick={signOut}
-          className="pointer-events-auto rounded-full border border-white/10 bg-ink2/80 px-3 py-1.5 text-xs text-white/60 backdrop-blur hover:text-white"
+          onClick={() => setSettingsOpen(true)}
+          className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-ink2/80 text-lg backdrop-blur hover:bg-ink3"
+          title="Settings"
         >
-          Sign out
+          ⚙️
         </button>
       </div>
 
@@ -360,10 +447,30 @@ export function RiskyApp({ userId }: { userId: string }) {
               profiles.find((p) => p.id === selected.author)?.display_name ||
               "someone"
             }
+            busy={photoBusy}
             onSavePhoto={savePhotoFilters}
+            onSaveDetails={(title, note) => saveDetails(selected.id, title, note)}
+            onAddPhotos={(files) => addPhotosToMemory(selected.id, files)}
+            onRemovePhoto={(photo) => removePhoto(selected.id, photo)}
             onDelete={() => deleteMemory(selected)}
           />
         )}
+      </Sheet>
+
+      {/* Settings sheet */}
+      <Sheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title="Settings"
+      >
+        <Settings
+          displayName={me?.display_name || ""}
+          partnerName={partner?.display_name ?? null}
+          partnerSeen={partner?.location_updated_at ?? null}
+          appUrl={appUrl}
+          onSaveName={saveName}
+          onSignOut={signOut}
+        />
       </Sheet>
     </main>
   );

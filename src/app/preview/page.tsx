@@ -127,7 +127,11 @@ export default function Preview() {
           <MemoryDetail
             adventure={selected}
             authorName={selected.author === "me" ? "Clark" : "Skyler"}
+            busy={false}
             onSavePhoto={() => {}}
+            onSaveDetails={() => {}}
+            onAddPhotos={() => {}}
+            onRemovePhoto={() => {}}
             onDelete={() => setSelected(null)}
           />
         )}
