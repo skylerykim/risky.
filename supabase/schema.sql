@@ -63,6 +63,18 @@ drop policy if exists "shared photos" on public.photos;
 create policy "shared photos" on public.photos
   for all to authenticated using (true) with check (true);
 
+-- ---------- A song attached to a patch of memories ----------
+
+create table if not exists public.patch_songs (
+  anchor text primary key,
+  track jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.patch_songs enable row level security;
+drop policy if exists "shared patch songs" on public.patch_songs;
+create policy "shared patch songs" on public.patch_songs
+  for all to authenticated using (true) with check (true);
+
 -- ---------- Storage bucket for photos (private) ----------
 
 insert into storage.buckets (id, name, public)
