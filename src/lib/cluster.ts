@@ -30,5 +30,14 @@ export function clusterAdventures(
     }
     if (!placed) clusters.push({ id: a.id, lat: a.lat, lng: a.lng, items: [a] });
   }
+  // Anchor each patch to its OLDEST memory so an attached song stays put as
+  // newer memories are added to the patch.
+  for (const c of clusters) {
+    const oldest = c.items.reduce(
+      (m, x) => (x.created_at < m.created_at ? x : m),
+      c.items[0]
+    );
+    c.id = oldest.id;
+  }
   return clusters;
 }

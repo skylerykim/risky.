@@ -51,6 +51,14 @@ export type Adventure = {
   photos?: Photo[];
 };
 
+export type Track = {
+  id: string;
+  name: string;
+  artists: string;
+  image: string | null;
+  url: string;
+};
+
 export type Profile = {
   id: string;
   display_name: string | null;

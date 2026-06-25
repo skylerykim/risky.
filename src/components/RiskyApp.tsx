@@ -8,6 +8,7 @@ import {
   PhotoFilters,
   Photo,
   Profile,
+  Track,
 } from "@/lib/types";
 import { Wordmark } from "@/components/Wordmark";
 import { Sheet } from "@/components/Sheet";
@@ -17,6 +18,7 @@ import { MemoryDetail } from "@/components/MemoryDetail";
 import { Settings } from "@/components/Settings";
 import { personColor } from "@/lib/people";
 import { clusterAdventures, Cluster } from "@/lib/cluster";
+import { PatchView } from "@/components/PatchView";
 import type { LatLng } from "@/components/MapView";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -55,6 +57,7 @@ export function RiskyApp({ userId }: { userId: string }) {
     [adventures]
   );
   const [openPatch, setOpenPatch] = useState<Cluster | null>(null);
+  const [songs, setSongs] = useState<Record<string, Track>>({});
 
   // Settings. The QR always points to the exact site this is being viewed on,
   // so it can't drift to a stale/wrong domain.
@@ -91,6 +94,42 @@ export function RiskyApp({ userId }: { userId: string }) {
     if (data) setProfiles(data as Profile[]);
   }, [supabase]);
 
+  const loadSongs = useCallback(async () => {
+    const { data } = await supabase.from("patch_songs").select("anchor, track");
+    if (data) {
+      const map: Record<string, Track> = {};
+      for (const row of data as { anchor: string; track: Track }[]) {
+        map[row.anchor] = row.track;
+      }
+      setSongs(map);
+    }
+  }, [supabase]);
+
+  async function searchSpotify(q: string): Promise<Track[]> {
+    const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) return [];
+    return (await res.json()).tracks ?? [];
+  }
+
+  async function saveSong(anchor: string, track: Track | null) {
+    if (track) {
+      await supabase
+        .from("patch_songs")
+        .upsert(
+          { anchor, track, updated_at: new Date().toISOString() },
+          { onConflict: "anchor" }
+        );
+      setSongs((s) => ({ ...s, [anchor]: track }));
+    } else {
+      await supabase.from("patch_songs").delete().eq("anchor", anchor);
+      setSongs((s) => {
+        const next = { ...s };
+        delete next[anchor];
+        return next;
+      });
+    }
+  }
+
   const loadAdventures = useCallback(async () => {
     const { data } = await supabase
       .from("adventures")
@@ -123,7 +162,8 @@ export function RiskyApp({ userId }: { userId: string }) {
   useEffect(() => {
     loadProfiles();
     loadAdventures();
-  }, [loadProfiles, loadAdventures]);
+    loadSongs();
+  }, [loadProfiles, loadAdventures, loadSongs]);
 
   // ---- Realtime: partner location & new memories -----------------------
   useEffect(() => {
@@ -515,39 +555,17 @@ export function RiskyApp({ userId }: { userId: string }) {
         title={openPatch ? `${openPatch.items.length} memories nearby` : ""}
       >
         {openPatch && (
-          <div className="space-y-2">
-            {openPatch.items.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => {
-                  setOpenPatch(null);
-                  openMemory(a);
-                }}
-                className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-ink p-2 text-left hover:border-sky"
-              >
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-ink2">
-                  {firstThumb[a.id] ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={firstThumb[a.id]}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{a.title}</p>
-                  <p className="text-xs text-white/40">
-                    {new Date(a.created_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <PatchView
+            patch={openPatch}
+            track={songs[openPatch.id] ?? null}
+            firstThumb={firstThumb}
+            onOpenMemory={(a) => {
+              setOpenPatch(null);
+              openMemory(a);
+            }}
+            onSearch={searchSpotify}
+            onSaveSong={(t) => saveSong(openPatch.id, t)}
+          />
         )}
       </Sheet>
 
