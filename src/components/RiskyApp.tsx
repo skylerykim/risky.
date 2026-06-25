@@ -16,6 +16,7 @@ import { AddAdventure, DraftPhoto } from "@/components/AddAdventure";
 import { MemoryDetail } from "@/components/MemoryDetail";
 import { Settings } from "@/components/Settings";
 import { personColor } from "@/lib/people";
+import { clusterAdventures, Cluster } from "@/lib/cluster";
 import type { LatLng } from "@/components/MapView";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -47,6 +48,13 @@ export function RiskyApp({ userId }: { userId: string }) {
   // Detail flow
   const [selected, setSelected] = useState<Adventure | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Patches: memories within ~10 miles are grouped together.
+  const clusters = useMemo(
+    () => clusterAdventures(adventures, 10),
+    [adventures]
+  );
+  const [openPatch, setOpenPatch] = useState<Cluster | null>(null);
 
   // Settings. The QR always points to the exact site this is being viewed on,
   // so it can't drift to a stale/wrong domain.
@@ -166,6 +174,16 @@ export function RiskyApp({ userId }: { userId: string }) {
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [supabase, userId]);
+
+  // Center on the user the first time their location is known.
+  const centeredOnMe = useRef(false);
+  useEffect(() => {
+    if (mePos && !centeredOnMe.current) {
+      centeredOnMe.current = true;
+      setRecenterTo([mePos.lat, mePos.lng]);
+      setRecenterTrigger((t) => t + 1);
+    }
+  }, [mePos]);
 
   // ---- Sign all of an adventure's photos for viewing -------------------
   const signPhotos = useCallback(
@@ -374,8 +392,11 @@ export function RiskyApp({ userId }: { userId: string }) {
       {/* Map */}
       <div className="absolute inset-0">
         <MapView
-          adventures={adventures}
-          onSelect={openMemory}
+          clusters={clusters}
+          onSelectCluster={(c) => {
+            if (c.items.length === 1) openMemory(c.items[0]);
+            else setOpenPatch(c);
+          }}
           pickMode={picking}
           pickPoint={draftPoint}
           onPick={(lat, lng) => {
@@ -484,6 +505,49 @@ export function RiskyApp({ userId }: { userId: string }) {
             onRemovePhoto={(photo) => removePhoto(selected.id, photo)}
             onDelete={() => deleteMemory(selected)}
           />
+        )}
+      </Sheet>
+
+      {/* Patch (group of nearby memories) */}
+      <Sheet
+        open={!!openPatch}
+        onClose={() => setOpenPatch(null)}
+        title={openPatch ? `${openPatch.items.length} memories nearby` : ""}
+      >
+        {openPatch && (
+          <div className="space-y-2">
+            {openPatch.items.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  setOpenPatch(null);
+                  openMemory(a);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-ink p-2 text-left hover:border-sky"
+              >
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-ink2">
+                  {firstThumb[a.id] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={firstThumb[a.id]}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{a.title}</p>
+                  <p className="text-xs text-white/40">
+                    {new Date(a.created_at).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
         )}
       </Sheet>
 

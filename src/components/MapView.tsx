@@ -10,7 +10,7 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import type { Adventure } from "@/lib/types";
+import type { Cluster } from "@/lib/cluster";
 
 // Gradient teardrop pin (built from HTML so we avoid broken image paths).
 function pinIcon(thumb?: string) {
@@ -26,6 +26,22 @@ function pinIcon(thumb?: string) {
     </div>`,
     iconSize: [42, 42],
     iconAnchor: [21, 42],
+  });
+}
+
+// Marker for a patch of 2+ memories: thumbnail with a count badge.
+function clusterIcon(thumb: string | undefined, count: number) {
+  const inner = thumb
+    ? `<img src="${thumb}" style="width:46px;height:46px;border-radius:14px;object-fit:cover;border:2px solid #a855f7"/>`
+    : `<div style="width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#1e1430,#2a1d40);border:2px solid #a855f7"></div>`;
+  return L.divIcon({
+    className: "",
+    html: `<div style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.6))">
+      ${inner}
+      <div style="position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#f9a8d4,#a855f7);color:#0b0710;font:700 12px/22px system-ui;text-align:center">${count}</div>
+    </div>`,
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
   });
 }
 
@@ -63,8 +79,8 @@ function ClickCatcher({ onPick }: { onPick: (lat: number, lng: number) => void }
 export type LatLng = { lat: number; lng: number };
 
 export default function MapView({
-  adventures,
-  onSelect,
+  clusters,
+  onSelectCluster,
   pickMode,
   pickPoint,
   onPick,
@@ -76,8 +92,8 @@ export default function MapView({
   recenterTrigger,
   firstThumb,
 }: {
-  adventures: Adventure[];
-  onSelect: (a: Adventure) => void;
+  clusters: Cluster[];
+  onSelectCluster: (c: Cluster) => void;
   pickMode: boolean;
   pickPoint: LatLng | null;
   onPick: (lat: number, lng: number) => void;
@@ -91,8 +107,8 @@ export default function MapView({
 }) {
   const fallback: [number, number] = me
     ? [me.lat, me.lng]
-    : adventures.length
-    ? [adventures[0].lat, adventures[0].lng]
+    : clusters.length
+    ? [clusters[0].lat, clusters[0].lng]
     : [38.0293, -78.4767]; // Charlottesville-ish default
 
   return (
@@ -110,14 +126,23 @@ export default function MapView({
       {recenterTo && <Recenter center={recenterTo} trigger={recenterTrigger} />}
       {pickMode && <ClickCatcher onPick={onPick} />}
 
-      {adventures.map((a) => (
-        <Marker
-          key={a.id}
-          position={[a.lat, a.lng]}
-          icon={pinIcon(firstThumb[a.id])}
-          eventHandlers={{ click: () => onSelect(a) }}
-        />
-      ))}
+      {clusters.map((c) =>
+        c.items.length === 1 ? (
+          <Marker
+            key={c.id}
+            position={[c.items[0].lat, c.items[0].lng]}
+            icon={pinIcon(firstThumb[c.items[0].id])}
+            eventHandlers={{ click: () => onSelectCluster(c) }}
+          />
+        ) : (
+          <Marker
+            key={c.id}
+            position={[c.lat, c.lng]}
+            icon={clusterIcon(firstThumb[c.items[0].id], c.items.length)}
+            eventHandlers={{ click: () => onSelectCluster(c) }}
+          />
+        )
+      )}
 
       {pickMode && pickPoint && (
         <Marker position={[pickPoint.lat, pickPoint.lng]} icon={pinIcon()} />

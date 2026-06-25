@@ -10,6 +10,7 @@ import { Sheet } from "@/components/Sheet";
 import { DistanceBar } from "@/components/DistanceBar";
 import { MemoryDetail } from "@/components/MemoryDetail";
 import { Adventure, DEFAULT_FILTERS } from "@/lib/types";
+import { clusterAdventures } from "@/lib/cluster";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
@@ -76,9 +77,9 @@ export default function Preview() {
     <main className="relative h-[100dvh] w-full overflow-hidden">
       <div className="absolute inset-0">
         <MapView
-          adventures={ADVENTURES}
-          onSelect={(a) => {
-            setSelected(a);
+          clusters={clusterAdventures(ADVENTURES, 10)}
+          onSelectCluster={(c) => {
+            setSelected(c.items[0]);
             setRecenterTrigger((t) => t + 1);
           }}
           pickMode={false}
