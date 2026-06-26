@@ -215,6 +215,16 @@ export function RiskyApp({ userId }: { userId: string }) {
     return () => navigator.geolocation.clearWatch(id);
   }, [supabase, userId]);
 
+  // If my own profile gets cleared (the other person broke the pair), sign out
+  // and return to the picker.
+  useEffect(() => {
+    if (me && !me.display_name) {
+      supabase.auth.signOut().finally(() => {
+        window.location.href = "/login";
+      });
+    }
+  }, [me, supabase]);
+
   // Center on the user the first time their location is known.
   const centeredOnMe = useRef(false);
   useEffect(() => {
@@ -404,9 +414,11 @@ export function RiskyApp({ userId }: { userId: string }) {
     window.location.href = "/login";
   }
 
-  // Break the pair: free up my name + location so it can be re-picked, then
-  // sign out and return to the name picker.
+  // Break the pair for BOTH people: clear my profile and my partner's so both
+  // names free up. The other phone notices its profile went blank and returns
+  // to the picker on its own (see the unpair effect below).
   async function breakPair() {
+    const ids = [userId, partner?.id].filter(Boolean) as string[];
     await supabase
       .from("profiles")
       .update({
@@ -415,7 +427,7 @@ export function RiskyApp({ userId }: { userId: string }) {
         lng: null,
         location_updated_at: null,
       })
-      .eq("id", userId);
+      .in("id", ids);
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
