@@ -76,7 +76,7 @@ export function RiskyApp({ userId }: { userId: string }) {
   // with the most recent location.
   const partner =
     profiles
-      .filter((p) => p.id !== userId)
+      .filter((p) => p.id !== userId && p.display_name)
       .sort(
         (a, b) =>
           (b.location_updated_at ? Date.parse(b.location_updated_at) : 0) -
