@@ -215,15 +215,36 @@ export function RiskyApp({ userId }: { userId: string }) {
     return () => navigator.geolocation.clearWatch(id);
   }, [supabase, userId]);
 
-  // If my own profile gets cleared (the other person broke the pair), sign out
-  // and return to the picker.
+  // Remember who my partner is while we're paired.
+  const lastPartnerId = useRef<string | null>(null);
   useEffect(() => {
-    if (me && !me.display_name) {
-      supabase.auth.signOut().finally(() => {
+    if (partner?.id) lastPartnerId.current = partner.id;
+  }, [partner?.id]);
+
+  // When the other person breaks the pair, their profile row goes nameless.
+  // Detect that, clear my own side too, and return to the picker, so a break
+  // on one phone unpairs both.
+  const breaking = useRef(false);
+  useEffect(() => {
+    if (breaking.current || !lastPartnerId.current) return;
+    const formerPartner = profiles.find((p) => p.id === lastPartnerId.current);
+    if (formerPartner && !formerPartner.display_name) {
+      breaking.current = true;
+      (async () => {
+        await supabase
+          .from("profiles")
+          .update({
+            display_name: null,
+            lat: null,
+            lng: null,
+            location_updated_at: null,
+          })
+          .eq("id", userId);
+        await supabase.auth.signOut();
         window.location.href = "/login";
-      });
+      })();
     }
-  }, [me, supabase]);
+  }, [profiles, supabase, userId]);
 
   // Center on the user the first time their location is known.
   const centeredOnMe = useRef(false);
@@ -414,11 +435,10 @@ export function RiskyApp({ userId }: { userId: string }) {
     window.location.href = "/login";
   }
 
-  // Break the pair for BOTH people: clear my profile and my partner's so both
-  // names free up. The other phone notices its profile went blank and returns
-  // to the picker on its own (see the unpair effect below).
+  // Break the pair. I clear my own profile (which frees my name); the other
+  // phone notices my profile went blank and breaks itself too (see the unpair
+  // effect below). Each phone only ever edits its own profile.
   async function breakPair() {
-    const ids = [userId, partner?.id].filter(Boolean) as string[];
     await supabase
       .from("profiles")
       .update({
@@ -427,7 +447,7 @@ export function RiskyApp({ userId }: { userId: string }) {
         lng: null,
         location_updated_at: null,
       })
-      .in("id", ids);
+      .eq("id", userId);
     await supabase.auth.signOut();
     window.location.href = "/login";
   }

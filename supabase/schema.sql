@@ -51,12 +51,9 @@ drop policy if exists "own profile upsert" on public.profiles;
 create policy "own profile upsert" on public.profiles
   for insert to authenticated with check (auth.uid() = id);
 
--- Either person can update either profile (shared 2-person space). This also
--- lets "Break pair" clear the partner's profile so both unpair at once.
 drop policy if exists "own profile update" on public.profiles;
-drop policy if exists "shared profile update" on public.profiles;
-create policy "shared profile update" on public.profiles
-  for update to authenticated using (true) with check (true);
+create policy "own profile update" on public.profiles
+  for update to authenticated using (auth.uid() = id);
 
 drop policy if exists "shared adventures" on public.adventures;
 create policy "shared adventures" on public.adventures
