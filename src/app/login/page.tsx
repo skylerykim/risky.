@@ -25,20 +25,27 @@ export default function LoginPage() {
       return;
     }
 
-    // Don't let both phones be the same person.
+    // Don't let both phones be the same person, but only block a name that's
+    // ACTIVELY in use right now (location updated in the last ~2 min). A stale
+    // leftover profile never blocks you, so you can't get locked out.
     const { data: taken } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, location_updated_at")
       .eq("display_name", name)
-      .neq("id", data.user.id)
-      .limit(1);
+      .neq("id", data.user.id);
 
-    if (taken && taken.length > 0) {
+    const activelyTaken = (taken ?? []).some(
+      (p) =>
+        p.location_updated_at &&
+        Date.now() - Date.parse(p.location_updated_at as string) < 120000
+    );
+
+    if (activelyTaken) {
       await supabase.auth.signOut();
       setLoading(null);
       const other = PEOPLE.find((p) => p !== name) ?? "the other name";
       setError(
-        `${name} is already taken on the other phone. Pick ${other}, or tap "Break pair" there first.`
+        `${name} is in use on the other phone right now. Pick ${other}, or tap "Break pair" there first.`
       );
       return;
     }
